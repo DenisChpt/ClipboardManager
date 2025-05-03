@@ -230,6 +230,7 @@ impl ClipboardManagerApp {
 	}
 
 	/// Affiche l'interface utilisateur
+	/// Modifié pour être une fonction statique (sans &self)
 	pub fn view(app: &Self) -> Element<Message> {
 		// Filtrer les éléments selon la recherche
 		let filtered_items = if app.search_query.is_empty() {

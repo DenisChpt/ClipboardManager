@@ -1,5 +1,4 @@
 use anyhow::Result;
-use clipboard_manager::app::ClipboardManagerApp;
 use env_logger::Env;
 use iced::{window, Size};
 use log::{error, info};
