@@ -1,7 +1,7 @@
 use anyhow::Result;
 use clipboard_manager::app::ClipboardManagerApp;
 use env_logger::Env;
-use iced::{Application, Settings};
+use iced::{window, Settings};
 use log::{error, info};
 
 fn main() -> Result<()> {
@@ -11,10 +11,10 @@ fn main() -> Result<()> {
 
 	// Configuration de l'application Iced
 	let settings = Settings {
-		window: iced::window::Settings {
-			size: (400, 500),
-			position: iced::window::Position::Centered,
-			min_size: Some((300, 400)),
+		window: window::Settings {
+			size: (400, 500).into(),
+			position: window::Position::Centered,
+			min_size: Some((300, 400).into()),
 			max_size: None,
 			visible: true,
 			resizable: true,
@@ -31,8 +31,13 @@ fn main() -> Result<()> {
 		..Default::default()
 	};
 
-	// Lancement de l'application
-	match ClipboardManagerApp::run(settings) {
+	// Lancement de l'application avec la nouvelle API fonctionnelle d'Iced 0.13
+	match iced::application("Gestionnaire de presse-papiers", 
+						   ClipboardManagerApp::update, 
+						   ClipboardManagerApp::view)
+		.theme(|app: &ClipboardManagerApp| app.theme())
+		.subscription(|app: &ClipboardManagerApp| app.subscription())
+		.run_with(settings, || ClipboardManagerApp::new()) {
 		Ok(_) => {
 			info!("Application terminée avec succès");
 			Ok(())

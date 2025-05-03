@@ -118,7 +118,6 @@ impl ClipboardWatcher {
 			) => {
 				a_meta.width == b_meta.width
 					&& a_meta.height == b_meta.height
-					&& a_meta.bytes_per_pixel == b_meta.bytes_per_pixel
 					&& a_data == b_data
 			}
 			// Types différents

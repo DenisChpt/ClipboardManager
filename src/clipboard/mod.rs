@@ -22,7 +22,6 @@ pub enum ClipboardContent {
 pub struct ImageMetadata {
 	pub width: usize,
 	pub height: usize,
-	pub bytes_per_pixel: usize,
 }
 
 /// Un élément du presse-papiers avec ses métadonnées
@@ -104,7 +103,6 @@ impl ClipboardManager {
 				let metadata = ImageMetadata {
 					width: image.width,
 					height: image.height,
-					bytes_per_pixel: image.bytes_per_pixel,
 				};
 
 				// Conversion en Vec<u8> pour la sérialisation
@@ -126,7 +124,6 @@ impl ClipboardManager {
 				let image = ImageData {
 					width: metadata.width,
 					height: metadata.height,
-					bytes_per_pixel: metadata.bytes_per_pixel,
 					bytes: data.as_slice().into(),
 				};
 				self.clipboard

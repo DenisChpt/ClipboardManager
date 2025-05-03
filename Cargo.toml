@@ -14,7 +14,7 @@ categories = ["gui", "os::unix-apis"]
 
 [dependencies]
 # Interface graphique
-iced = { version = "0.13", features = ["wgpu", "image", "svg", "debug", "tokio", "advanced"] }
+iced = { version = "0.13", features = ["wgpu", "image", "svg", "debug", "tokio"] }
 
 # Gestion du presse-papiers
 arboard = { version = "3.3", features = ["wayland-data-control"] }

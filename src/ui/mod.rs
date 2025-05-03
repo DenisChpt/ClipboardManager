@@ -7,7 +7,7 @@ use crate::config::Theme;
 use components::{create_clipboard_item_view, create_search_bar, create_toolbar};
 use iced::{Element, Subscription};
 use iced::widget::{column, container, scrollable, text};
-use style::ContainerStyle;
+use style::container_style;
 use uuid::Uuid;
 
 /// État interne de l'interface
@@ -57,32 +57,32 @@ pub fn clipboard_subscription() -> Subscription<Message> {
 
 /// Vue principale
 pub fn view<'a>(
-	_state: &'a State,
-	items: &'a [ClipboardItem],
-	search_query: &'a str,
+	_state: State,
+	items: Vec<ClipboardItem>,
+	search_query: String,
 	theme: Theme,
 ) -> Element<'a, Message> {
 	// Barre d'outils en haut
 	let toolbar = create_toolbar(theme);
 	
 	// Barre de recherche
-	let search_bar = create_search_bar(search_query);
+	let search_bar = create_search_bar(&search_query);
 	
 	// Liste des éléments
-	let mut items_list = column().spacing(8).padding(8);
-	
-	if items.is_empty() {
-		items_list = items_list.push(
-			container(text("Aucun élément dans l'historique").size(16))
+	let items_list = if items.is_empty() {
+		column![
+			container(text::<iced::Theme, iced::Renderer>("Aucun élément dans l'historique").size(16))
 				.width(iced::Length::Fill)
 				.align_x(iced::alignment::Horizontal::Center)
-				.padding(20),
-		);
+				.padding(20)
+		].spacing(8).padding(8)
 	} else {
-		for item in items {
-			items_list = items_list.push(create_clipboard_item_view(item));
-		}
-	}
+		// Spécifions explicitement le type pour collect
+		let elements: Vec<Element<'a, Message>> = items.iter()
+			.map(|item| create_clipboard_item_view(item))
+			.collect();
+		column(elements).spacing(8).padding(8)
+	};
 	
 	// Conteneur scrollable pour la liste
 	let scrollable_items = scrollable(items_list)
@@ -90,18 +90,19 @@ pub fn view<'a>(
 		.height(iced::Length::Fill);
 	
 	// Mise en page principale
-	let content = column()
-		.push(toolbar)
-		.push(search_bar)
-		.push(scrollable_items)
-		.spacing(10)
-		.padding(10)
-		.width(iced::Length::Fill)
-		.height(iced::Length::Fill);
+	let content = column![
+		toolbar,
+		search_bar,
+		scrollable_items
+	]
+	.spacing(10)
+	.padding(10)
+	.width(iced::Length::Fill)
+	.height(iced::Length::Fill);
 	
 	// Conteneur principal avec coins arrondis
 	container(content)
-		.style(ContainerStyle)
+		.style(container_style)
 		.width(iced::Length::Fill)
 		.height(iced::Length::Fill)
 		.into()

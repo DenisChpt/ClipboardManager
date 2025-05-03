@@ -9,9 +9,10 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 /// État de l'application
+#[derive(Clone)]
 pub struct ClipboardManagerApp {
 	/// Configuration de l'application
-	config: Config,
+	pub config: Config,
 	
 	/// Interface utilisateur
 	ui_state: crate::ui::State,
@@ -29,13 +30,9 @@ pub struct ClipboardManagerApp {
 	search_query: String,
 }
 
-impl iced::application::Application for ClipboardManagerApp {
-	type Executor = iced::executor::Default;
-	type Message = Message;
-	type Theme = iced::Theme;
-	type Flags = ();
-
-	fn new(_flags: Self::Flags) -> (Self, Task<Self::Message>) {
+impl ClipboardManagerApp {
+	/// Crée une nouvelle instance de l'application
+	pub fn new() -> (Self, Task<Message>) {
 		let config_path = get_default_config_path();
 		
 		// Charger la configuration
@@ -89,15 +86,20 @@ impl iced::application::Application for ClipboardManagerApp {
 			search_query: String::new(),
 		};
 		
+		// Pour éviter l'erreur de propriété avec app.storage.clone()
+		let storage_clone = app.storage.clone();
+		
 		// Charger les éléments au démarrage
-		(app, Task::perform(Self::load_items(app.storage.clone()), Message::ItemsLoaded))
+		(app, Task::perform(Self::load_items(storage_clone), Message::ItemsLoaded))
 	}
 
-	fn title(&self) -> String {
+	/// Retourne le titre de l'application
+	pub fn title(&self) -> String {
 		String::from("Gestionnaire de presse-papiers")
 	}
 
-	fn update(&mut self, message: Self::Message) -> Task<Self::Message> {
+	/// Met à jour l'état de l'application en fonction du message reçu
+	pub fn update(&mut self, message: Message) -> Task<Message> {
 		match message {
 			Message::ItemsLoaded(items) => {
 				self.items = items;
@@ -107,7 +109,7 @@ impl iced::application::Application for ClipboardManagerApp {
 				let storage = self.storage.clone();
 				Task::perform(
 					async move {
-						let mut storage = storage.lock().await;
+						let storage = storage.lock().await;
 						storage.add_item(item.clone())?;
 						storage.flush()?;
 						Ok(())
@@ -150,7 +152,7 @@ impl iced::application::Application for ClipboardManagerApp {
 					
 					Task::perform(
 						async move {
-							let mut storage = storage.lock().await;
+							let storage = storage.lock().await;
 							storage.update_item(item)?;
 							storage.flush()?;
 							Ok(())
@@ -171,7 +173,7 @@ impl iced::application::Application for ClipboardManagerApp {
 				
 				Task::perform(
 					async move {
-						let mut storage = storage.lock().await;
+						let storage = storage.lock().await;
 						storage.remove_item(id)?;
 						storage.flush()?;
 						Ok(())
@@ -189,7 +191,7 @@ impl iced::application::Application for ClipboardManagerApp {
 				
 				Task::perform(
 					async move {
-						let mut storage = storage.lock().await;
+						let storage = storage.lock().await;
 						storage.clear_non_pinned()?;
 						storage.flush()?;
 						Ok(())
@@ -232,7 +234,8 @@ impl iced::application::Application for ClipboardManagerApp {
 		}
 	}
 
-	fn view(&self) -> Element<Self::Message> {
+	/// Affiche l'interface utilisateur
+	pub fn view(&self) -> Element<Message> {
 		// Filtrer les éléments selon la recherche
 		let filtered_items = if self.search_query.is_empty() {
 			self.items.clone()
@@ -244,24 +247,38 @@ impl iced::application::Application for ClipboardManagerApp {
 				.collect()
 		};
 		
-		crate::ui::view(&self.ui_state, &filtered_items, &self.search_query, self.config.theme)
+		// on retourne directement la vue pour éviter l'erreur de référence locale
+		crate::ui::view(self.ui_state.clone(), filtered_items, self.search_query.clone(), self.config.theme)
 	}
 
-	fn subscription(&self) -> Subscription<Self::Message> {
+	/// Abonnements aux événements externes
+	pub fn subscription(&self) -> Subscription<Message> {
 		// Subscribe to clipboard changes
 		crate::ui::clipboard_subscription()
 	}
 
-	fn theme(&self) -> Self::Theme {
+	/// Thème de l'application
+	pub fn theme(&self) -> iced::Theme {
 		match self.config.theme {
 			Theme::Light => iced::Theme::Light,
 			Theme::Dark => iced::Theme::Dark,
-			Theme::System => iced::Theme::system(),
+			// Utiliser le prédicat de la plateforme pour déterminer le thème système
+			Theme::System => {
+				if cfg!(target_os = "macos") {
+					// Sur macOS, on peut détecter le mode sombre
+					if self::is_macos_dark_mode() {
+						iced::Theme::Dark
+					} else {
+						iced::Theme::Light
+					}
+				} else {
+					// Sur les autres plateformes, par défaut light
+					iced::Theme::Light
+				}
+			}
 		}
 	}
-}
 
-impl ClipboardManagerApp {
 	/// Charge les éléments depuis le stockage
 	async fn load_items(storage: Arc<Mutex<Box<dyn Storage>>>) -> Vec<ClipboardItem> {
 		let storage = storage.lock().await;
@@ -273,4 +290,22 @@ impl ClipboardManagerApp {
 			}
 		}
 	}
+}
+
+/// Détecte si macOS est en mode sombre
+#[cfg(target_os = "macos")]
+fn is_macos_dark_mode() -> bool {
+	use std::process::Command;
+	
+	let output = Command::new("defaults")
+		.args(&["read", "-g", "AppleInterfaceStyle"])
+		.output()
+		.unwrap_or_else(|_| Default::default());
+		
+	String::from_utf8_lossy(&output.stdout).trim() == "Dark"
+}
+
+#[cfg(not(target_os = "macos"))]
+fn is_macos_dark_mode() -> bool {
+	false
 }
