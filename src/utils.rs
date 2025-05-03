@@ -57,3 +57,31 @@ pub fn sanitize_text(text: &str, max_length: usize) -> String {
 	// Troncature avec ellipse
 	format!("{}...", &trimmed[..max_length - 3])
 }
+
+/// Vérifie que les ressources sont disponibles et crée les dossiers si nécessaire
+pub fn ensure_resources_available() -> ClipboardResult<()> {
+	// Vérifier le dossier des icônes
+	let icons_dir = Path::new("assets/icons");
+	ensure_dir_exists(icons_dir)?;
+	
+	// Vérifier la présence de chaque icône
+	let icon_files = [
+		"sun.svg",
+		"moon.svg",
+		"trash.svg",
+		"pin.svg",
+		"pinned.svg",
+		"use.svg",
+	];
+	
+	for icon in &icon_files {
+		let icon_path = icons_dir.join(icon);
+		if !icon_path.exists() {
+			return Err(ClipboardError::Unexpected(
+				format!("L'icône {} est manquante", icon)
+			));
+		}
+	}
+	
+	Ok(())
+}

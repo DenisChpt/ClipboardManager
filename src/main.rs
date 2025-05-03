@@ -8,6 +8,16 @@ fn main() -> Result<()> {
 	env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
 	info!("Démarrage de ClipboardManager");
 
+	// Vérifier la disponibilité des ressources
+	match clipboard_manager::utils::ensure_resources_available() {
+		Ok(_) => info!("Ressources (icônes) vérifiées avec succès"),
+		Err(e) => {
+			error!("Erreur lors de la vérification des ressources: {}", e);
+			error!("Assurez-vous que le dossier assets/icons contient tous les fichiers SVG nécessaires");
+			return Err(anyhow::anyhow!("Ressources manquantes: {}", e));
+		}
+	}
+
 	// Configuration de l'application
 	let window_settings = window::Settings {
 		size: Size::new(400.0, 500.0),

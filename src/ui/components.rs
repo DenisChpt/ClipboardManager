@@ -3,7 +3,7 @@ use crate::config::Theme;
 use crate::ui::Message;
 use crate::ui::style::{toolbar_style, search_bar_style, pinned_item_style, clipboard_item_style};
 use chrono::{DateTime, Utc};
-use iced::widget::{button, column, container, horizontal_rule, image, row, text, text_input, Space};
+use iced::widget::{button, column, container, horizontal_rule, image, row, text, text_input, Space, svg};
 use iced::{alignment, Length, Element};
 
 /// Crée la barre d'outils
@@ -13,19 +13,31 @@ pub fn create_toolbar(current_theme: Theme) -> Element<'static, Message> {
 		.width(Length::Fill);
 
 	let theme_button = match current_theme {
-		Theme::Light => button("🌙").on_press(Message::SetTheme(Theme::Dark)),
-		Theme::Dark => button("☀️").on_press(Message::SetTheme(Theme::Light)),
+		Theme::Light => {
+			let moon_icon = svg::Handle::from_path("assets/icons/moon.svg");
+			button(svg(moon_icon).width(Length::Fixed(20.0)).height(Length::Fixed(20.0)))
+				.on_press(Message::SetTheme(Theme::Dark))
+		},
+		Theme::Dark => {
+			let sun_icon = svg::Handle::from_path("assets/icons/sun.svg");
+			button(svg(sun_icon).width(Length::Fixed(20.0)).height(Length::Fixed(20.0)))
+				.on_press(Message::SetTheme(Theme::Light))
+		},
 		Theme::System => {
-			// Par défaut, utilisez une icône en fonction du thème système actuel
 			if cfg!(target_os = "macos") && is_macos_dark_mode() {
-				button("☀️").on_press(Message::SetTheme(Theme::Light))
+				let sun_icon = svg::Handle::from_path("assets/icons/sun.svg");
+				button(svg(sun_icon).width(Length::Fixed(20.0)).height(Length::Fixed(20.0)))
+					.on_press(Message::SetTheme(Theme::Light))
 			} else {
-				button("🌙").on_press(Message::SetTheme(Theme::Dark))
+				let moon_icon = svg::Handle::from_path("assets/icons/moon.svg");
+				button(svg(moon_icon).width(Length::Fixed(20.0)).height(Length::Fixed(20.0)))
+					.on_press(Message::SetTheme(Theme::Dark))
 			}
 		}
 	};
 
-	let clear_button = button("🗑️")
+	let trash_icon = svg::Handle::from_path("assets/icons/trash.svg");
+	let clear_button = button(svg(trash_icon).width(Length::Fixed(20.0)).height(Length::Fixed(20.0)))
 		.on_press(Message::ClearItems)
 		.width(Length::Shrink);
 
@@ -98,17 +110,29 @@ pub fn create_clipboard_item_view(item: &ClipboardItem) -> Element<'static, Mess
 	let metadata = text::<iced::Theme, iced::Renderer>(timestamp).size(12).color(iced::Color::from_rgb(0.5, 0.5, 0.5));
 
 	// Boutons d'action
-	let pin_icon = if pinned { "📌" } else { "📍" };
+	// Utiliser des icônes SVG au lieu d'emojis
+	let pin_icon = if pinned {
+		svg::Handle::from_path("assets/icons/pinned.svg")
+	} else {
+		svg::Handle::from_path("assets/icons/pin.svg")
+	};
 	
-	let pin_button = button(text::<iced::Theme, iced::Renderer>(pin_icon))
+	let pin_button = button(svg(pin_icon).width(Length::Fixed(20.0)).height(Length::Fixed(20.0)))
 		.on_press(Message::PinItem(item_id))
 		.padding(5);
-		
-	let select_button = button("Utiliser")
-		.on_press(Message::SelectItem(item_id))
-		.padding(5);
-		
-	let remove_button = button("🗑️")
+	
+	let use_icon = svg::Handle::from_path("assets/icons/use.svg");
+	let select_button = button(
+		row![
+			svg(use_icon).width(Length::Fixed(20.0)).height(Length::Fixed(20.0)),
+			text("Utiliser").size(14)
+		].spacing(5)
+	)
+	.on_press(Message::SelectItem(item_id))
+	.padding(5);
+	
+	let trash_icon = svg::Handle::from_path("assets/icons/trash.svg");
+	let remove_button = button(svg(trash_icon).width(Length::Fixed(20.0)).height(Length::Fixed(20.0)))
 		.on_press(Message::RemoveItem(item_id))
 		.padding(5);
 	
