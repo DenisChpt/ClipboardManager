@@ -13,7 +13,7 @@ use uuid::Uuid;
 /// État interne de l'interface
 #[derive(Debug, Default, Clone)]
 pub struct State {
-	watcher_initialized: bool,
+	// Supprimé le champ non utilisé watcher_initialized
 }
 
 /// Messages UI

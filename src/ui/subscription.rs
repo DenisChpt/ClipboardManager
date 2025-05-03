@@ -1,32 +1,59 @@
 use crate::clipboard::ClipboardWatcher;
 use crate::ui::Message;
 use iced::Subscription;
-use iced::futures::SinkExt;
-use log::{debug, error, info};
+use iced::futures::stream::{self};
+use log::{debug, info};
 
 /// Crée un abonnement pour surveiller les changements du presse-papiers
 pub fn clipboard_subscription() -> Subscription<Message> {
-	// Dans Iced 0.13, on utilise Subscription::run directement
-	Subscription::run("clipboard_watcher", async move |mut output| {
-		// Crée et démarre la surveillance du presse-papiers
-		let mut watcher = ClipboardWatcher::new();
-		let mut receiver = watcher.take_receiver().expect("Impossible d'obtenir le récepteur");
-		
-		info!("Démarrage de la surveillance du presse-papiers");
-		watcher.start().await.expect("Erreur démarrage surveillance presse-papiers");
-		
-		// Traiter les événements du presse-papiers
-		while let Some(item) = receiver.recv().await {
-			debug!("Nouvel élément dans le presse-papiers détecté");
-			
-			// Envoyer l'événement à l'interface
-			if let Err(e) = output.send(Message::NewClipboardItem(item)).await {
-				error!("Erreur envoi message UI: {}", e);
-				break;
+	// Version avec stream::unfold qui est compatible avec la version actuelle d'Iced
+	Subscription::run(|| {
+		// Créer une fonction qui retourne un Stream
+		let stream = stream::unfold(
+			ClipboardWatcherState::Starting,
+			move |state| async move {
+				match state {
+					ClipboardWatcherState::Starting => {
+						// Créer et initialiser la surveillance
+						let mut watcher = ClipboardWatcher::new();
+						let receiver = watcher.take_receiver().expect("Impossible d'obtenir le récepteur");
+						
+						info!("Démarrage de la surveillance du presse-papiers");
+						watcher.start().await.expect("Erreur démarrage surveillance presse-papiers");
+						
+						// Passer à l'état Watching avec le receiver
+						Some((
+							Message::None, 
+							ClipboardWatcherState::Watching(watcher, receiver)
+						))
+					},
+					ClipboardWatcherState::Watching(watcher, mut receiver) => {
+						// Attendre le prochain événement du presse-papiers
+						if let Some(item) = receiver.recv().await {
+							debug!("Nouvel élément dans le presse-papiers détecté");
+							
+							// Émettre un événement et continuer d'écouter
+							Some((
+								Message::NewClipboardItem(item),
+								ClipboardWatcherState::Watching(watcher, receiver)
+							))
+						} else {
+							// Le canal a été fermé, terminer la surveillance
+							info!("Surveillance du presse-papiers terminée");
+							None
+						}
+					}
+				}
 			}
-		}
+		);
 		
-		// Ne devrait jamais atteindre ce point sauf si la surveillance s'arrête
-		info!("Surveillance du presse-papiers terminée");
+		// Retourner le stream directement
+		stream
 	})
+}
+
+/// État de la surveillance du presse-papiers
+enum ClipboardWatcherState {
+	Starting,
+	Watching(ClipboardWatcher, tokio::sync::mpsc::Receiver<crate::clipboard::ClipboardItem>),
 }

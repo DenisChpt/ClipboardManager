@@ -67,7 +67,7 @@ pub fn create_clipboard_item_view(item: &ClipboardItem) -> Element<'static, Mess
 	let pinned = item.pinned;
 
 	// Conteneur pour l'aperçu du contenu
-	let content_preview = match &item.content {
+	let content_preview: Element<'_, Message> = match &item.content {
 		ClipboardContent::Text(text_val) => {
 			let preview = if text_val.len() > 100 {
 				format!("{}...", &text_val[..97])
@@ -75,10 +75,10 @@ pub fn create_clipboard_item_view(item: &ClipboardItem) -> Element<'static, Mess
 				text_val.clone()
 			};
 			
-			// Pour éviter l'erreur de conversion implicite, spécifier explicitement le type
-			text::<iced::Theme, iced::Renderer>(&preview).size(14).into()
+			// Utiliser directement la chaîne pour éviter les problèmes de durée de vie
+			text::<iced::Theme, iced::Renderer>(preview).size(14).into()
 		}
-		ClipboardContent::Image(data, metadata) => {
+		ClipboardContent::Image(data, _metadata) => {
 			// Créer un aperçu de l'image avec la nouvelle API
 			let handle = image::Handle::from_bytes(data.clone());
 			let img = image(handle)

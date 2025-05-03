@@ -3,7 +3,7 @@ use crate::config::{get_default_config_path, Config, Theme};
 use crate::error::ClipboardResult;
 use crate::storage::{create_storage, Storage};
 use crate::ui::Message;
-use iced::{Element, Subscription, Task};
+use iced::{Element, Subscription, Task, Theme as IcedTheme};
 use log::{debug, error, info};
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -93,20 +93,15 @@ impl ClipboardManagerApp {
 		(app, Task::perform(Self::load_items(storage_clone), Message::ItemsLoaded))
 	}
 
-	/// Retourne le titre de l'application
-	pub fn title(&self) -> String {
-		String::from("Gestionnaire de presse-papiers")
-	}
-
 	/// Met à jour l'état de l'application en fonction du message reçu
-	pub fn update(&mut self, message: Message) -> Task<Message> {
+	pub fn update(app: &mut Self, message: Message) -> Task<Message> {
 		match message {
 			Message::ItemsLoaded(items) => {
-				self.items = items;
+				app.items = items;
 				Task::none()
 			}
 			Message::NewClipboardItem(item) => {
-				let storage = self.storage.clone();
+				let storage = app.storage.clone();
 				Task::perform(
 					async move {
 						let storage = storage.lock().await;
@@ -123,9 +118,9 @@ impl ClipboardManagerApp {
 				)
 			}
 			Message::SelectItem(id) => {
-				let item = self.items.iter().find(|item| item.id == id).cloned();
+				let item = app.items.iter().find(|item| item.id == id).cloned();
 				if let Some(item) = item {
-					let clipboard_manager = self.clipboard_manager.clone();
+					let clipboard_manager = app.clipboard_manager.clone();
 					
 					Task::perform(
 						async move {
@@ -145,10 +140,10 @@ impl ClipboardManagerApp {
 				}
 			}
 			Message::PinItem(id) => {
-				let item = self.items.iter().find(|item| item.id == id).cloned();
+				let item = app.items.iter().find(|item| item.id == id).cloned();
 				if let Some(mut item) = item {
 					item.pinned = !item.pinned;
-					let storage = self.storage.clone();
+					let storage = app.storage.clone();
 					
 					Task::perform(
 						async move {
@@ -169,7 +164,7 @@ impl ClipboardManagerApp {
 				}
 			}
 			Message::RemoveItem(id) => {
-				let storage = self.storage.clone();
+				let storage = app.storage.clone();
 				
 				Task::perform(
 					async move {
@@ -187,7 +182,7 @@ impl ClipboardManagerApp {
 				)
 			}
 			Message::ClearItems => {
-				let storage = self.storage.clone();
+				let storage = app.storage.clone();
 				
 				Task::perform(
 					async move {
@@ -205,8 +200,8 @@ impl ClipboardManagerApp {
 				)
 			}
 			Message::SetTheme(theme) => {
-				self.config.theme = theme;
-				let config = self.config.clone();
+				app.config.theme = theme;
+				let config = app.config.clone();
 				let config_path = get_default_config_path();
 				
 				Task::perform(
@@ -223,11 +218,11 @@ impl ClipboardManagerApp {
 				)
 			}
 			Message::SearchChanged(query) => {
-				self.search_query = query;
+				app.search_query = query;
 				Task::none()
 			}
 			Message::ReloadItems => {
-				let storage = self.storage.clone();
+				let storage = app.storage.clone();
 				Task::perform(Self::load_items(storage), Message::ItemsLoaded)
 			}
 			Message::None => Task::none(),
@@ -235,45 +230,45 @@ impl ClipboardManagerApp {
 	}
 
 	/// Affiche l'interface utilisateur
-	pub fn view(&self) -> Element<Message> {
+	pub fn view(app: &Self) -> Element<Message> {
 		// Filtrer les éléments selon la recherche
-		let filtered_items = if self.search_query.is_empty() {
-			self.items.clone()
+		let filtered_items = if app.search_query.is_empty() {
+			app.items.clone()
 		} else {
-			self.items
+			app.items
 				.iter()
-				.filter(|item| item.matches_search(&self.search_query))
+				.filter(|item| item.matches_search(&app.search_query))
 				.cloned()
 				.collect()
 		};
 		
 		// on retourne directement la vue pour éviter l'erreur de référence locale
-		crate::ui::view(self.ui_state.clone(), filtered_items, self.search_query.clone(), self.config.theme)
+		crate::ui::view(app.ui_state.clone(), filtered_items, app.search_query.clone(), app.config.theme)
 	}
 
 	/// Abonnements aux événements externes
-	pub fn subscription(&self) -> Subscription<Message> {
+	pub fn subscription(_app: &Self) -> Subscription<Message> {
 		// Subscribe to clipboard changes
 		crate::ui::clipboard_subscription()
 	}
 
 	/// Thème de l'application
-	pub fn theme(&self) -> iced::Theme {
-		match self.config.theme {
-			Theme::Light => iced::Theme::Light,
-			Theme::Dark => iced::Theme::Dark,
+	pub fn theme(app: &Self) -> IcedTheme {
+		match app.config.theme {
+			Theme::Light => IcedTheme::Light,
+			Theme::Dark => IcedTheme::Dark,
 			// Utiliser le prédicat de la plateforme pour déterminer le thème système
 			Theme::System => {
 				if cfg!(target_os = "macos") {
 					// Sur macOS, on peut détecter le mode sombre
-					if self::is_macos_dark_mode() {
-						iced::Theme::Dark
+					if is_macos_dark_mode() {
+						IcedTheme::Dark
 					} else {
-						iced::Theme::Light
+						IcedTheme::Light
 					}
 				} else {
 					// Sur les autres plateformes, par défaut light
-					iced::Theme::Light
+					IcedTheme::Light
 				}
 			}
 		}

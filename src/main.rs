@@ -1,7 +1,7 @@
 use anyhow::Result;
 use clipboard_manager::app::ClipboardManagerApp;
 use env_logger::Env;
-use iced::{window, Settings};
+use iced::{window, Size};
 use log::{error, info};
 
 fn main() -> Result<()> {
@@ -9,35 +9,22 @@ fn main() -> Result<()> {
 	env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
 	info!("Démarrage de ClipboardManager");
 
-	// Configuration de l'application Iced
-	let settings = Settings {
-		window: window::Settings {
-			size: (400, 500).into(),
-			position: window::Position::Centered,
-			min_size: Some((300, 400).into()),
-			max_size: None,
-			visible: true,
-			resizable: true,
-			decorations: true,
-			transparent: true,
-			always_on_top: true,
-			..Default::default()
-		},
-		// Activer la gestion des icônes SVG
-		default_font: None,
-		default_text_size: 16.0,
-		// Fermer lors de la demande
-		exit_on_close_request: true,
-		..Default::default()
+	// Configuration de l'application
+	let window_settings = window::Settings {
+		size: Size::new(400.0, 500.0),
+		position: window::Position::Centered,
+		min_size: Some(Size::new(300.0, 400.0)),
+		resizable: true,
+		decorations: true,
+		transparent: true,
+		..window::Settings::default()
 	};
 
-	// Lancement de l'application avec la nouvelle API fonctionnelle d'Iced 0.13
-	match iced::application("Gestionnaire de presse-papiers", 
-						   ClipboardManagerApp::update, 
-						   ClipboardManagerApp::view)
-		.theme(|app: &ClipboardManagerApp| app.theme())
-		.subscription(|app: &ClipboardManagerApp| app.subscription())
-		.run_with(settings, || ClipboardManagerApp::new()) {
+	// Version simplifiée pour éviter les problèmes de durée de vie
+	let run_result = clipboard_manager::run(window_settings);
+
+	// Gérer le résultat
+	match run_result {
 		Ok(_) => {
 			info!("Application terminée avec succès");
 			Ok(())
