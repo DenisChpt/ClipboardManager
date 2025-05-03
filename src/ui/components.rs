@@ -3,7 +3,7 @@ use crate::config::Theme;
 use crate::ui::Message;
 use crate::ui::style::{toolbar_style, search_bar_style, pinned_item_style, clipboard_item_style};
 use chrono::{DateTime, Utc};
-use iced::widget::{button, column, container, horizontal_rule, row, text, text_input, image, Space};
+use iced::widget::{button, column, container, horizontal_rule, image, row, text, text_input, Space};
 use iced::{alignment, Length, Element};
 
 /// Crée la barre d'outils
