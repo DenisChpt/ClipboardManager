@@ -1,0 +1,57 @@
+[package]
+name = "clipboard-manager"
+version = "0.1.0"
+edition = "2021"
+authors = ["Votre Nom <votre.email@exemple.com>"]
+description = "Un gestionnaire de presse-papiers inspiré de Windows 11 pour Linux (Wayland)"
+readme = "README.md"
+license = "MIT"
+repository = "https://github.com/votre-nom/clipboard-manager"
+keywords = ["clipboard", "wayland", "gui", "linux"]
+categories = ["gui", "os::unix-apis"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# Interface graphique
+iced = { version = "0.13", features = ["wgpu", "image", "svg", "debug", "tokio", "advanced"] }
+
+# Gestion du presse-papiers
+arboard = { version = "3.3", features = ["wayland-data-control"] }
+
+# Stockage
+sled = "0.34"
+
+# Async runtime
+tokio = { version = "1.44", features = ["full"] }
+
+# Gestion des fenêtres
+winit = { version = "0.30", features = ["wayland"] }
+
+# Utilitaires
+image = "0.25"
+uuid = { version = "1.7", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+anyhow = "1.0"
+thiserror = "1.0"
+log = "0.4"
+env_logger = "0.11"
+notify = "6.1"
+dirs = "5.0"
+
+[dev-dependencies]
+mockall = "0.12"
+tempfile = "3.10"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[features]
+default = ["wayland"]
+wayland = []
