@@ -1,13 +1,13 @@
 use crate::clipboard::{ClipboardContent, ClipboardItem};
 use crate::config::Theme;
 use crate::ui::Message;
-use crate::ui::style::{toolbar_style, search_bar_style, pinned_item_style, clipboard_item_style};
+use crate::ui::style::{toolbar_style, search_bar_style, pinned_item_style, clipboard_item_style, round_button_style};
 use chrono::{DateTime, Utc};
 use iced::widget::{button, column, container, horizontal_rule, image, row, text, text_input, Space, svg};
 use iced::{alignment, Length, Element};
 
 /// Crée la barre d'outils
-pub fn create_toolbar(current_theme: Theme) -> Element<'static, Message> {
+pub fn create_toolbar(current_theme: Theme, _iced_theme: &iced::Theme) -> Element<'static, Message> {
 	let title = text("Gestionnaire de presse-papiers")
 		.size(18)
 		.width(Length::Fill);
@@ -17,21 +17,25 @@ pub fn create_toolbar(current_theme: Theme) -> Element<'static, Message> {
 			let moon_icon = svg::Handle::from_path("assets/icons/moon.svg");
 			button(svg(moon_icon).width(Length::Fixed(20.0)).height(Length::Fixed(20.0)))
 				.on_press(Message::SetTheme(Theme::Dark))
+				.style(|theme, _status| round_button_style(theme))
 		},
 		Theme::Dark => {
 			let sun_icon = svg::Handle::from_path("assets/icons/sun.svg");
 			button(svg(sun_icon).width(Length::Fixed(20.0)).height(Length::Fixed(20.0)))
 				.on_press(Message::SetTheme(Theme::Light))
+				.style(|theme, _status| round_button_style(theme))
 		},
 		Theme::System => {
 			if cfg!(target_os = "macos") && is_macos_dark_mode() {
 				let sun_icon = svg::Handle::from_path("assets/icons/sun.svg");
 				button(svg(sun_icon).width(Length::Fixed(20.0)).height(Length::Fixed(20.0)))
 					.on_press(Message::SetTheme(Theme::Light))
+					.style(|theme, _status| round_button_style(theme))
 			} else {
 				let moon_icon = svg::Handle::from_path("assets/icons/moon.svg");
 				button(svg(moon_icon).width(Length::Fixed(20.0)).height(Length::Fixed(20.0)))
 					.on_press(Message::SetTheme(Theme::Dark))
+					.style(|theme, _status| round_button_style(theme))
 			}
 		}
 	};
@@ -39,19 +43,19 @@ pub fn create_toolbar(current_theme: Theme) -> Element<'static, Message> {
 	let trash_icon = svg::Handle::from_path("assets/icons/trash.svg");
 	let clear_button = button(svg(trash_icon).width(Length::Fixed(20.0)).height(Length::Fixed(20.0)))
 		.on_press(Message::ClearItems)
+		.style(|theme, _status| round_button_style(theme))
 		.width(Length::Shrink);
 
-	// Correction: row! est un macro mais on doit toujours respecter l'API
 	let toolbar = row![
 		title,
 		theme_button,
-		Space::with_width(Length::Fixed(10.0)), // Remplacer horizontal_space
+		Space::with_width(Length::Fixed(10.0)),
 		clear_button
 	]
 	.padding(10)
 	.spacing(10)
 	.width(Length::Fill)
-	.align_y(alignment::Vertical::Center); // Remplacer align_items
+	.align_y(alignment::Vertical::Center);
 
 	container(toolbar)
 		.style(toolbar_style)
@@ -60,7 +64,7 @@ pub fn create_toolbar(current_theme: Theme) -> Element<'static, Message> {
 }
 
 /// Crée la barre de recherche
-pub fn create_search_bar(search_query: &str) -> Element<'static, Message> {
+pub fn create_search_bar(search_query: &str, _iced_theme: &iced::Theme) -> Element<'static, Message> {
 	let search_input = text_input("Rechercher...", search_query)
 		.on_input(Message::SearchChanged)
 		.padding(10)
@@ -74,7 +78,7 @@ pub fn create_search_bar(search_query: &str) -> Element<'static, Message> {
 }
 
 /// Crée un aperçu d'élément du presse-papiers
-pub fn create_clipboard_item_view(item: &ClipboardItem) -> Element<'static, Message> {
+pub fn create_clipboard_item_view(item: &ClipboardItem, selected: bool, _iced_theme: &iced::Theme) -> Element<'static, Message> {
 	let item_id = item.id;
 	let pinned = item.pinned;
 
@@ -87,11 +91,9 @@ pub fn create_clipboard_item_view(item: &ClipboardItem) -> Element<'static, Mess
 				text_val.clone()
 			};
 			
-			// Utiliser directement la chaîne pour éviter les problèmes de durée de vie
 			text::<iced::Theme, iced::Renderer>(preview).size(14).into()
 		}
 		ClipboardContent::Image(data, _metadata) => {
-			// Créer un aperçu de l'image avec la nouvelle API
 			let handle = image::Handle::from_bytes(data.clone());
 			let img = image(handle)
 				.width(Length::Fixed(100.0))
@@ -110,7 +112,6 @@ pub fn create_clipboard_item_view(item: &ClipboardItem) -> Element<'static, Mess
 	let metadata = text::<iced::Theme, iced::Renderer>(timestamp).size(12).color(iced::Color::from_rgb(0.5, 0.5, 0.5));
 
 	// Boutons d'action
-	// Utiliser des icônes SVG au lieu d'emojis
 	let pin_icon = if pinned {
 		svg::Handle::from_path("assets/icons/pinned.svg")
 	} else {
@@ -119,6 +120,7 @@ pub fn create_clipboard_item_view(item: &ClipboardItem) -> Element<'static, Mess
 	
 	let pin_button = button(svg(pin_icon).width(Length::Fixed(20.0)).height(Length::Fixed(20.0)))
 		.on_press(Message::PinItem(item_id))
+		.style(|theme, _status| round_button_style(theme))
 		.padding(5);
 	
 	let use_icon = svg::Handle::from_path("assets/icons/use.svg");
@@ -128,12 +130,14 @@ pub fn create_clipboard_item_view(item: &ClipboardItem) -> Element<'static, Mess
 			text("Utiliser").size(14)
 		].spacing(5)
 	)
-	.on_press(Message::SelectItem(item_id))
+	.on_press(Message::UseItem(item_id))
+	.style(|theme, _status| round_button_style(theme))
 	.padding(5);
 	
 	let trash_icon = svg::Handle::from_path("assets/icons/trash.svg");
 	let remove_button = button(svg(trash_icon).width(Length::Fixed(20.0)).height(Length::Fixed(20.0)))
 		.on_press(Message::RemoveItem(item_id))
+		.style(|theme, _status| round_button_style(theme))
 		.padding(5);
 	
 	let buttons = row![
@@ -166,7 +170,7 @@ pub fn create_clipboard_item_view(item: &ClipboardItem) -> Element<'static, Mess
 			.into()
 	} else {
 		container(content)
-			.style(clipboard_item_style(false))
+			.style(move |theme| clipboard_item_style(selected, theme))
 			.width(Length::Fill)
 			.into()
 	}

@@ -8,13 +8,13 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use uuid::Uuid;
+use std::process::{Command, Stdio};
 
 /// Types d'éléments pouvant être stockés dans le presse-papiers
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ClipboardContent {
 	Text(String),
 	Image(Vec<u8>, ImageMetadata),
-	// À l'avenir, nous pourrions ajouter d'autres types (HTML, fichiers, etc.)
 }
 
 /// Métadonnées pour les images
@@ -52,7 +52,6 @@ impl ClipboardItem {
 
 		match &self.content {
 			ClipboardContent::Text(text) => text.to_lowercase().contains(&query.to_lowercase()),
-			// Les images ne peuvent pas être recherchées par texte
 			ClipboardContent::Image(_, _) => false,
 		}
 	}
@@ -108,7 +107,7 @@ impl ClipboardManager {
 				// Conversion en Vec<u8> pour la sérialisation
 				Ok(Some(ClipboardContent::Image(image.bytes.to_vec(), metadata)))
 			}
-			Err(_) => Ok(None), // Aucun contenu reconnu
+			Err(_) => Ok(None),
 		}
 	}
 
@@ -131,6 +130,85 @@ impl ClipboardManager {
 					.map_err(|e| ClipboardError::Clipboard(e.to_string()))?;
 			}
 		}
+		Ok(())
+	}
+
+	/// Vérifie si ydotool est disponible
+	pub fn check_ydotool_available() -> bool {
+		Command::new("ydotool")
+			.arg("--version")
+			.output()
+			.map(|output| output.status.success())
+			.unwrap_or(false)
+	}
+
+	/// Colle directement le contenu dans la fenêtre active
+	pub async fn paste_to_active_window(&mut self, item: &ClipboardItem) -> ClipboardResult<()> {
+		// D'abord, mettre le contenu dans le presse-papiers si c'est une image
+		match &item.content {
+			ClipboardContent::Image(_, _) => {
+				self.set_content(item)?;
+			}
+			_ => {} // Pour le texte, on laisse ydotool type gérer
+		}
+		
+		// Petite pause pour s'assurer que l'environnement est prêt
+		tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+		
+		// Pour AZERTY, utiliser la commande appropriée
+		if cfg!(target_os = "linux") {
+			match &item.content {
+				ClipboardContent::Text(text) => {
+					// Pour le texte, utiliser la commande type qui gère l'AZERTY automatiquement
+					let result = Command::new("ydotool")
+						.arg("type")
+						.arg("--")
+						.arg(text)
+						.stdin(Stdio::null())
+						.output();
+						
+					match result {
+						Ok(output) => {
+							if output.status.success() {
+								return Ok(());
+							} else {
+								log::error!("ydotool type failed: {}", String::from_utf8_lossy(&output.stderr));
+							}
+						}
+						Err(e) => {
+							log::error!("Error executing ydotool type: {}", e);
+						}
+					}
+				}
+				ClipboardContent::Image(_, _) => {
+					// Pour les images, utiliser Ctrl+V
+					let result = Command::new("ydotool")
+						.args(&["key", "29:1", "47:1", "47:0", "29:0"])  // Ctrl+V
+						.output();
+						
+					match result {
+						Ok(output) => {
+							if output.status.success() {
+								return Ok(());
+							} else {
+								log::error!("ydotool key failed: {}", String::from_utf8_lossy(&output.stderr));
+							}
+						}
+						Err(e) => {
+							log::error!("Error executing ydotool key: {}", e);
+						}
+					}
+				}
+			}
+			
+			// Si ydotool échoue, retourner une erreur appropriée
+			return Err(ClipboardError::Unexpected(
+				"Erreur lors du collage avec ydotool. Assurez-vous que ydotool est installé et que le service ydotool est en cours d'exécution."
+					.to_string()
+			));
+		}
+		
+		// Pour les autres OS, on ne fait rien (set_content a déjà mis dans le presse-papiers)
 		Ok(())
 	}
 }

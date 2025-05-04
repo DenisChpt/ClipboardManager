@@ -86,7 +86,6 @@ impl ClipboardManagerApp {
 			search_query: String::new(),
 		};
 		
-		// Pour éviter l'erreur de propriété avec app.storage.clone()
 		let storage_clone = app.storage.clone();
 		
 		// Charger les éléments au démarrage
@@ -94,14 +93,14 @@ impl ClipboardManagerApp {
 	}
 
 	/// Met à jour l'état de l'application en fonction du message reçu
-	pub fn update(app: &mut Self, message: Message) -> Task<Message> {
+	pub fn update(&mut self, message: Message) -> Task<Message> {
 		match message {
 			Message::ItemsLoaded(items) => {
-				app.items = items;
+				self.items = items;
 				Task::none()
 			}
 			Message::NewClipboardItem(item) => {
-				let storage = app.storage.clone();
+				let storage = self.storage.clone();
 				Task::perform(
 					async move {
 						let storage = storage.lock().await;
@@ -117,20 +116,21 @@ impl ClipboardManagerApp {
 					},
 				)
 			}
-			Message::SelectItem(id) => {
-				let item = app.items.iter().find(|item| item.id == id).cloned();
+			Message::UseItem(id) => {
+				let item = self.items.iter().find(|item| item.id == id).cloned();
 				if let Some(item) = item {
-					let clipboard_manager = app.clipboard_manager.clone();
+					let clipboard_manager = self.clipboard_manager.clone();
 					
 					Task::perform(
 						async move {
 							let mut manager = clipboard_manager.lock().await;
-							manager.set_content(&item)?;
+							// Coller directement le contenu
+							manager.paste_to_active_window(&item).await?;
 							Ok(())
 						},
 						|result: ClipboardResult<()>| {
 							if let Err(e) = result {
-								error!("Erreur copie élément: {}", e);
+								error!("Erreur lors du collage: {}", e);
 							}
 							Message::None
 						},
@@ -140,10 +140,10 @@ impl ClipboardManagerApp {
 				}
 			}
 			Message::PinItem(id) => {
-				let item = app.items.iter().find(|item| item.id == id).cloned();
+				let item = self.items.iter().find(|item| item.id == id).cloned();
 				if let Some(mut item) = item {
 					item.pinned = !item.pinned;
-					let storage = app.storage.clone();
+					let storage = self.storage.clone();
 					
 					Task::perform(
 						async move {
@@ -164,7 +164,7 @@ impl ClipboardManagerApp {
 				}
 			}
 			Message::RemoveItem(id) => {
-				let storage = app.storage.clone();
+				let storage = self.storage.clone();
 				
 				Task::perform(
 					async move {
@@ -182,7 +182,7 @@ impl ClipboardManagerApp {
 				)
 			}
 			Message::ClearItems => {
-				let storage = app.storage.clone();
+				let storage = self.storage.clone();
 				
 				Task::perform(
 					async move {
@@ -200,8 +200,8 @@ impl ClipboardManagerApp {
 				)
 			}
 			Message::SetTheme(theme) => {
-				app.config.theme = theme;
-				let config = app.config.clone();
+				self.config.theme = theme;
+				let config = self.config.clone();
 				let config_path = get_default_config_path();
 				
 				Task::perform(
@@ -218,57 +218,85 @@ impl ClipboardManagerApp {
 				)
 			}
 			Message::SearchChanged(query) => {
-				app.search_query = query;
+				self.search_query = query;
 				Task::none()
 			}
 			Message::ReloadItems => {
-				let storage = app.storage.clone();
+				let storage = self.storage.clone();
 				Task::perform(Self::load_items(storage), Message::ItemsLoaded)
+			}
+			Message::NavigateUp => {
+				if !self.items.is_empty() {
+					let current = self.ui_state.selected_index;
+					self.ui_state.selected_index = if current == 0 {
+						self.items.len() - 1
+					} else {
+						current - 1
+					};
+				}
+				Task::none()
+			}
+			Message::NavigateDown => {
+				if !self.items.is_empty() {
+					let current = self.ui_state.selected_index;
+					self.ui_state.selected_index = if current == self.items.len() - 1 {
+						0
+					} else {
+						current + 1
+					};
+				}
+				Task::none()
+			}
+			Message::UseSelected => {
+				if let Some(item) = self.items.get(self.ui_state.selected_index) {
+					let item_id = item.id;
+					self.update(Message::UseItem(item_id))
+				} else {
+					Task::none()
+				}
 			}
 			Message::None => Task::none(),
 		}
 	}
 
 	/// Affiche l'interface utilisateur
-	/// Modifié pour être une fonction statique (sans &self)
-	pub fn view(app: &Self) -> Element<Message> {
+	pub fn view(&self) -> Element<Message> {
 		// Filtrer les éléments selon la recherche
-		let filtered_items = if app.search_query.is_empty() {
-			app.items.clone()
+		let filtered_items = if self.search_query.is_empty() {
+			self.items.clone()
 		} else {
-			app.items
+			self.items
 				.iter()
-				.filter(|item| item.matches_search(&app.search_query))
+				.filter(|item| item.matches_search(&self.search_query))
 				.cloned()
 				.collect()
 		};
 		
-		// on retourne directement la vue pour éviter l'erreur de référence locale
-		crate::ui::view(app.ui_state.clone(), filtered_items, app.search_query.clone(), app.config.theme)
+		// Utiliser une vue avec le theme léger pour éviter les problèmes de lifetime
+		crate::ui::view(self.ui_state.clone(), filtered_items, self.search_query.clone(), self.config.theme, self.theme())
 	}
 
 	/// Abonnements aux événements externes
 	pub fn subscription(_app: &Self) -> Subscription<Message> {
-		// Subscribe to clipboard changes
-		crate::ui::clipboard_subscription()
+		Subscription::batch([
+			crate::ui::clipboard_subscription(),
+			crate::ui::keyboard_subscription(),
+		])
 	}
 
 	/// Thème de l'application
-	pub fn theme(app: &Self) -> IcedTheme {
-		match app.config.theme {
+	pub fn theme(&self) -> IcedTheme {
+		match self.config.theme {
 			Theme::Light => IcedTheme::Light,
 			Theme::Dark => IcedTheme::Dark,
-			// Utiliser le prédicat de la plateforme pour déterminer le thème système
 			Theme::System => {
 				if cfg!(target_os = "macos") {
-					// Sur macOS, on peut détecter le mode sombre
 					if is_macos_dark_mode() {
 						IcedTheme::Dark
 					} else {
 						IcedTheme::Light
 					}
 				} else {
-					// Sur les autres plateformes, par défaut light
 					IcedTheme::Light
 				}
 			}

@@ -5,7 +5,7 @@ mod subscription;
 use crate::clipboard::ClipboardItem;
 use crate::config::Theme;
 use components::{create_clipboard_item_view, create_search_bar, create_toolbar};
-use iced::{Element, Subscription};
+use iced::{Element, Subscription, keyboard};
 use iced::widget::{column, container, scrollable, text};
 use style::container_style;
 use uuid::Uuid;
@@ -13,40 +13,24 @@ use uuid::Uuid;
 /// État interne de l'interface
 #[derive(Debug, Default, Clone)]
 pub struct State {
-	// Supprimé le champ non utilisé watcher_initialized
+	pub selected_index: usize,
 }
 
 /// Messages UI
 #[derive(Debug, Clone)]
 pub enum Message {
-	/// Éléments chargés depuis le stockage
 	ItemsLoaded(Vec<ClipboardItem>),
-	
-	/// Nouvel élément détecté dans le presse-papiers
 	NewClipboardItem(ClipboardItem),
-	
-	/// Sélectionner un élément pour le copier
-	SelectItem(Uuid),
-	
-	/// Épingler/désépingler un élément
+	UseItem(Uuid),
 	PinItem(Uuid),
-	
-	/// Supprimer un élément
 	RemoveItem(Uuid),
-	
-	/// Effacer tous les éléments non épinglés
 	ClearItems,
-	
-	/// Changer le thème
 	SetTheme(Theme),
-	
-	/// Mise à jour du terme de recherche
 	SearchChanged(String),
-	
-	/// Recharger les éléments
 	ReloadItems,
-	
-	/// Message vide (pour les actions qui ne nécessitent pas de mise à jour)
+	NavigateUp,
+	NavigateDown,
+	UseSelected,
 	None,
 }
 
@@ -55,31 +39,44 @@ pub fn clipboard_subscription() -> Subscription<Message> {
 	subscription::clipboard_subscription()
 }
 
+/// Abonnement aux événements clavier
+pub fn keyboard_subscription() -> Subscription<Message> {
+	keyboard::on_key_press(|key, _modifiers| {
+		match key {
+			keyboard::Key::Named(keyboard::key::Named::ArrowUp) => Some(Message::NavigateUp),
+			keyboard::Key::Named(keyboard::key::Named::ArrowDown) => Some(Message::NavigateDown),
+			keyboard::Key::Named(keyboard::key::Named::Enter) => Some(Message::UseSelected),
+			_ => None,
+		}
+	})
+}
+
 /// Vue principale
 pub fn view<'a>(
-	_state: State,
+	state: State,
 	items: Vec<ClipboardItem>,
 	search_query: String,
 	theme: Theme,
+	_iced_theme: iced::Theme,
 ) -> Element<'a, Message> {
 	// Barre d'outils en haut
-	let toolbar = create_toolbar(theme);
+	let toolbar = create_toolbar(theme, &iced::Theme::Light);
 	
 	// Barre de recherche
-	let search_bar = create_search_bar(&search_query);
+	let search_bar = create_search_bar(&search_query, &iced::Theme::Light);
 	
 	// Liste des éléments
 	let items_list = if items.is_empty() {
 		column![
-			container(text::<iced::Theme, iced::Renderer>("Aucun élément dans l'historique").size(16))
+			container(text("Aucun élément dans l'historique").size(16))
 				.width(iced::Length::Fill)
 				.align_x(iced::alignment::Horizontal::Center)
 				.padding(20)
 		].spacing(8).padding(8)
 	} else {
-		// Spécifions explicitement le type pour collect
 		let elements: Vec<Element<'a, Message>> = items.iter()
-			.map(|item| create_clipboard_item_view(item))
+			.enumerate()
+			.map(|(index, item)| create_clipboard_item_view(item, index == state.selected_index, &iced::Theme::Light))
 			.collect();
 		column(elements).spacing(8).padding(8)
 	};
